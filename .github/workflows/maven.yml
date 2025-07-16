@@ -9,10 +9,8 @@
 name: Java CI with Maven
 
 on:
-  push:
-    branches: [ "main", "feature/*", "bugfix/*", "scenarios/*" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "scenarios/*" ]
 
 jobs:
   build:
@@ -28,4 +26,24 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Build with Maven
-      run: mvn -B package --file pom.xml
+      run: mvn -B compile --file pom.xml
+
+    - name: Extract test pattern from PR message
+      id: extract_test_pattern
+      run: |
+        PR_BODY="${{ github.event.pull_request.body }}"
+        if [[ "$PR_BODY" =~ [Rr]un[[:space:]]*tests:[[:space:]]*([^\n]+) ]]; then
+          TEST_PATTERN="${BASH_REMATCH[1]}"
+          echo "TEST_PATTERN=$TEST_PATTERN" >> $GITHUB_ENV
+          echo "Has test pattern: $TEST_PATTERN"
+        else
+          echo "No test pattern found in PR message"
+        fi
+
+    - name: Run Specific Tests
+      if: env.TEST_PATTERN != ''
+      run: mvn -B test -Dtest=${{ env.TEST_PATTERN }} --file pom.xml
+
+    - name: Run All Tests
+      if: env.TEST_PATTERN == ''
+      run: mvn -B test --file pom.xml
