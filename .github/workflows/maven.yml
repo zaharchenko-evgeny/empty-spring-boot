@@ -32,10 +32,19 @@ jobs:
       id: extract_test_pattern
       run: |
         PR_BODY="${{ github.event.pull_request.body }}"
-        if [[ "$PR_BODY" =~ [Rr]un[[:space:]]*tests:[[:space:]]*([^\n]+) ]]; then
-          TEST_PATTERN="${BASH_REMATCH[1]}"
-          echo "TEST_PATTERN=$TEST_PATTERN" >> $GITHUB_ENV
+        echo "Full PR body:"
+        echo "$PR_BODY"
+
+        # Use bash string manipulation to extract the test pattern
+        if echo "$PR_BODY" | grep -q -i "Run tests:"; then
+          # Extract the line with "Run tests:"
+          TEST_LINE=$(echo "$PR_BODY" | grep -i "Run tests:")
+          echo "Found line: $TEST_LINE"
+
+          # Extract everything after the colon
+          TEST_PATTERN=$(echo "$TEST_LINE" | sed 's/.*[Rr]un tests: *//' | tr -d '\r')
           echo "Has test pattern: $TEST_PATTERN"
+          echo "TEST_PATTERN=$TEST_PATTERN" >> $GITHUB_ENV
         else
           echo "No test pattern found in PR message"
         fi
