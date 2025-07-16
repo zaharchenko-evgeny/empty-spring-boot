@@ -28,31 +28,27 @@ jobs:
     - name: Build with Maven
       run: mvn -B compile --file pom.xml
 
-    - name: Extract test pattern from PR message
-      id: extract_test_pattern
+    - name: Extract test names from PR body
+      id: extract_tests
       run: |
         PR_BODY="${{ github.event.pull_request.body }}"
-        echo "Full PR body:"
-        echo "$PR_BODY"
+        
+        FAIL_TO_PASS=$(echo "$PR_BODY" | grep -E '^FAIL_TO_PASS:' | cut -d':' -f2- | xargs)
+        PASS_TO_PASS=$(echo "$PR_BODY" | grep -E '^PASS_TO_PASS:' | cut -d':' -f2- | xargs)
+        
+        TESTS="$FAIL_TO_PASS,$PASS_TO_PASS"
+        TESTS=$(echo "$TESTS" | sed 's/^[,]*//;s/[,]*$//')
+        
+        echo "tests=$TESTS" >> $GITHUB_OUTPUT
 
-        # Use bash string manipulation to extract the test pattern
-        if echo "$PR_BODY" | grep -q -i "Run tests:"; then
-          # Extract the line with "Run tests:"
-          TEST_LINE=$(echo "$PR_BODY" | grep -i "Run tests:")
-          echo "Found line: $TEST_LINE"
+    - name: Show tests to run
+      run: | 
+        echo "Running tests: ${{ steps.extract_tests.outputs.tests }}"
 
-          # Extract everything after the colon
-          TEST_PATTERN=$(echo "$TEST_LINE" | sed 's/.*[Rr]un tests: *//' | tr -d '\r')
-          echo "Has test pattern: $TEST_PATTERN"
-          echo "TEST_PATTERN=$TEST_PATTERN" >> $GITHUB_ENV
-        else
-          echo "No test pattern found in PR message"
-        fi
-
-    - name: Run Specific Tests
-      if: env.TEST_PATTERN != ''
-      run: mvn -B test -Dtest=${{ env.TEST_PATTERN }} --file pom.xml
+    - name: Run Maven tests
+      if: ${{ steps.extract_tests.outputs.tests != '' }}
+      run: mvn -B -Dtest="${{ steps.extract_tests.outputs.tests }}" test
 
     - name: Run All Tests
-      if: env.TEST_PATTERN == ''
+      if: ${{ steps.extract_tests.outputs.tests == '' }}
       run: mvn -B test --file pom.xml
